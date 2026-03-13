@@ -1,3 +1,5 @@
+import sys
+import os
 from data.cifar100 import load_cifar100, normalize_images, one_hot_encode
 from models.alexnet_cifar_100 import *
 from models.resnet18_cifar_100 import ResNet18_CIFAR100
@@ -8,7 +10,32 @@ from eval import evaluate
 from performance import perf
 from data.cifar100_augmentator import CIFAR100Augmentor
 
+
+class Tee:
+    """Duplicates stdout output to both terminal and a file."""
+    def __init__(self, filepath, mode='w'):
+        self.file = open(filepath, mode)
+        self.terminal = sys.stdout
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.file.write(message)
+
+    def flush(self):
+        self.terminal.flush()
+        self.file.flush()
+
+    def close(self):
+        self.file.close()
+
+
 def main(model_name, batch_size, epochs, learning_rate, conv_algo, performance, eval_only):
+    # Set up duplicated output to file
+    os.makedirs('outs', exist_ok=True)
+    out_filename = os.path.join('outs', f'{model_name}_{batch_size}')
+    tee = Tee(out_filename)
+    sys.stdout = tee
+    
     # !!Asegurarse de la ruta del dataset
     (train_images, train_labels), (test_images, test_labels) = load_cifar100(data_dir='./data/cifar-100-python')
 
@@ -38,6 +65,11 @@ def main(model_name, batch_size, epochs, learning_rate, conv_algo, performance, 
               save_path=f'saved_models/{model_name}', resume=True, test_images=test_images, test_labels=test_labels, augmentor=augmentor)
         else:
             _,_ = evaluate(model, test_images, test_labels, save_path=f'saved_models/{model_name}')
+
+    # Restore stdout and close file
+    sys.stdout = tee.terminal
+    tee.close()
+    print(f"Output saved to {out_filename}")
 
 if __name__ == '__main__':
 

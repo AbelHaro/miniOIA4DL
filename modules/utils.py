@@ -9,3 +9,5 @@ def matmul_biasses(A, B, C, bias):
             C[i][j] += bias[j]
     return C
 
+def im2col(input, kernel_size, stride, padding):
+    return None

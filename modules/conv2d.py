@@ -14,7 +14,9 @@ class Conv2D(Layer):
         
         # MODIFICAR: Añadir nuevo if-else para otros algoritmos de convolución
         if conv_algo == 0:
-            self.mode = 'direct' 
+            self.mode = 'direct'
+        elif conv_algo == 1:
+            self.mode = 'im2col'
         else:
             print(f"Algoritmo {conv_algo} no soportado aún")
             self.mode = 'direct' 
@@ -39,9 +41,9 @@ class Conv2D(Layer):
 
         # PISTA: Y estos valores para qué las podemos utilizar?
         # Si los usas, no olvides utilizar el modelo explicado en teoría que maximiza la caché
-        self.mc = 480
-        self.nc = 3072
-        self.kc = 384
+        self.mc = 256
+        self.nc = 1024
+        self.kc = 512
         self.mr = 32
         self.nr = 12
         self.Ac = np.empty((self.mc, self.kc), dtype=np.float32)
@@ -60,8 +62,10 @@ class Conv2D(Layer):
         # PISTA: Usar estos if-else si implementas más algoritmos de convolución
         if self.mode == 'direct':
             return self._forward_direct(input)
+        elif self.mode == 'im2col':
+            return self._forward_im2col(input)
         else:
-            raise ValueError("Mode must be 'direct")
+            raise ValueError("Mode must be 'direct' or 'im2col'")
 
     def backward(self, grad_output, learning_rate):
         # ESTO NO ES NECESARIO YA QUE NO VAIS A HACER BACKPROPAGATION
@@ -137,3 +141,5 @@ class Conv2D(Layer):
         return grad_input
 
     # PISTA: Se te ocurren otros algoritmos de convolución?
+    def _forward_im2col(self, input):
+        raise NotImplementedError("im2col forward not implemented yet")
