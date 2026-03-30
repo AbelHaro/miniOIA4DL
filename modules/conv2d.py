@@ -14,9 +14,9 @@ class Conv2D(Layer):
         
         # MODIFICAR: Añadir nuevo if-else para otros algoritmos de convolución
         if conv_algo == 0:
-            self.mode = 'direct'
-        elif conv_algo == 1:
             self.mode = 'im2col'
+        elif conv_algo == 1:
+            self.mode = 'direct'
         else:
             print(f"Algoritmo {conv_algo} no soportado aún")
             self.mode = 'direct' 
@@ -142,4 +142,57 @@ class Conv2D(Layer):
 
     # PISTA: Se te ocurren otros algoritmos de convolución?
     def _forward_im2col(self, input):
-        raise NotImplementedError("im2col forward not implemented yet")
+        
+        B, C, H, W = input.shape
+        K = self.kernel_size
+        H_out = H - K + 1
+        W_out = W - K + 1
+        
+        # Procesar cada imagen del batch
+        output = np.zeros((B, self.out_channels, H_out, W_out), dtype=np.float32)
+        
+        for b in range(B):
+            # Extraer la imagen actual del batch (shape: C, H, W)
+            img = input[b]
+            
+            # Convertir a im2col (shape: C*K*K, H_out*W_out)
+            cols = self._im2col(img, K)
+            
+            # Aplanar los kernels para multiplicación matricial (shape: out_channels, C*K*K)
+            kernel = self.kernels.reshape(self.out_channels, -1)
+            
+            # Multiplicación matricial (shape: out_channels, H_out*W_out)
+            out = kernel @ cols
+            
+            # Añadir bias (shape: out_channels, H_out*W_out)
+            out += self.biases[:, np.newaxis]
+            
+            # Reshape y almacenar (shape: out_channels, H_out, W_out)
+            output[b] = out.reshape(self.out_channels, H_out, W_out)
+        
+        return output
+        
+        
+    def _im2col(self, x, K):
+        # Extraer el tamaño de la imagen (x es 3D: C, H, W)
+        C, H, W = x.shape
+        
+        """ Calcular el tamaño de la salida después el proceso de im2col
+            H_out y W_out representan el número de posiciones donde se puede aplicar el kernel de tamaño KxK sobre la imagen de tamaño HxW
+            Si la imagen es de tamaño 32x32 y el kernel es de tamaño 3x3, entonces H_out y W_out serán ambos iguales a 30, porque el kernel puede colocarse en 30 posiciones a lo largo de cada dimensión sin salirse de la imagen."""
+            
+        H_out = H - K + 1
+        W_out = W - K + 1
+        
+        """ Crear una matriz de ceros para almacenar los parches extraídos de la imagen. 
+            La matriz 'cols' tendrá un tamaño de (C*K*K, H_out*W_out) porque cada columna representará un parche aplanado de tamaño C*KxK (todos los canales), y habrá H_out*W_out columnas en total, una para cada posición del kernel sobre la imagen."""
+        cols = np.zeros((C * K * K, H_out * W_out), dtype=np.float32)
+        
+        for i in range(H_out):
+            for j in range(W_out):
+                # Extraer el parche para todos los canales (shape: C, K, K)
+                patch = x[:, i:i+K, j:j+K].reshape(-1)
+                # Almacenar el parche aplanado en la matriz 'cols' en la columna correspondiente a la posición actual del kernel.
+                cols[:, i * W_out + j] = patch
+                
+        return cols
