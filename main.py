@@ -37,6 +37,7 @@ def main(
     learning_rate,
     conv_algo,
     dense_algo,
+    pool_algo,
     performance,
     eval_only,
 ):
@@ -59,13 +60,19 @@ def main(
     augmentor = CIFAR100Augmentor(crop_padding=4, flip_prob=0.5, noise_std=0.01)
     # Build and train model
     if model_name == "AlexNet":
-        model = AlexNet_CIFAR100(conv_algo=conv_algo)
+        model = AlexNet_CIFAR100(
+            conv_algo=conv_algo, dense_algo=dense_algo, pool_algo=pool_algo
+        )
     elif model_name == "TinyCNN":
-        model = TinyCNN(conv_algo=conv_algo)
+        model = TinyCNN(conv_algo=conv_algo, dense_algo=dense_algo, pool_algo=pool_algo)
     elif model_name == "OIANet":
-        model = OIANET_CIFAR100(conv_algo=conv_algo)
+        model = OIANET_CIFAR100(
+            conv_algo=conv_algo, dense_algo=dense_algo, pool_algo=pool_algo
+        )
     else:
-        model = ResNet18_CIFAR100(conv_algo=conv_algo)
+        model = ResNet18_CIFAR100(
+            conv_algo=conv_algo, dense_algo=dense_algo, pool_algo=pool_algo
+        )
 
     # Solamente se va a utilizar esta función para medir el rendimiento
     if performance:
@@ -143,6 +150,13 @@ if __name__ == "__main__":
         choices=[0, 1, 2],
         help="Dense algorithm 0-numpy, 1-direct, 2-gemm (default: 0)",
     )
+    parser.add_argument(
+        "--pool_algo",
+        type=int,
+        default=0,
+        choices=[0, 1],
+        help="Pool algorithm 0-python, 1-cython (default: 0)",
+    )
 
     args = parser.parse_args()
 
@@ -157,6 +171,9 @@ if __name__ == "__main__":
     dense_algo = (
         args.dense_algo
     )  # PISTA: esto sirve para seleccionar nuevos algoritmos de capa densa
+    pool_algo = (
+        args.pool_algo
+    )  # PISTA: esto sirve para seleccionar nuevos algoritmos de pooling
     eval_only = False  # FOR OIANET performance
 
     main(
@@ -166,6 +183,7 @@ if __name__ == "__main__":
         learning_rate,
         conv_algo,
         dense_algo,
+        pool_algo,
         performance,
         eval_only,
     )

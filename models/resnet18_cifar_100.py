@@ -101,7 +101,7 @@ class BasicBlock:
 
 
 class ResNet18_CIFAR100:
-    def __init__(self, conv_algo=0, dense_algo=0):
+    def __init__(self, conv_algo=0, dense_algo=0, pool_algo=0):
         print("Building ResNet18 for CIFAR-100")
         self.layers = []
 
@@ -117,7 +117,7 @@ class ResNet18_CIFAR100:
         self._make_layer(256, 512, 2, stride=2, conv_algo=conv_algo)
 
         # Global average pooling
-        self.layers.append(GlobalAvgPool2D())
+        self.layers.append(GlobalAvgPool2D(pool_algo=pool_algo))
 
         # Flatten + Dense
         self.layers.append(Flatten())

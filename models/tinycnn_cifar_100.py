@@ -10,7 +10,7 @@ from modules.batchnorm import BatchNorm2D
 
 
 class TinyCNN(BaseModel):
-    def __init__(self, conv_algo=0, dense_algo=0):
+    def __init__(self, conv_algo=0, dense_algo=0, pool_algo=0):
         print("Building TinyCNN for CIFAR-100")
         layers = [
             Conv2D(3, 32, kernel_size=3, stride=1, padding=1, conv_algo=conv_algo),
@@ -19,7 +19,7 @@ class TinyCNN(BaseModel):
             Conv2D(32, 64, kernel_size=3, stride=1, padding=1, conv_algo=conv_algo),
             BatchNorm2D(64),
             ReLU(),
-            GlobalAvgPool2D(),
+            GlobalAvgPool2D(pool_algo=pool_algo),
             Flatten(),
             Dense(64, 100, dense_algo=dense_algo),  # Output layer for 100 classes
             Softmax()
