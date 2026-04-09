@@ -27,30 +27,31 @@ def test_maxpool2d_forward_numerical():
              [-3,-4,-5,-6]]
         ]
     ], dtype=np.float32)
+    
+    for pool_algo in [0, 1]:
+        pool = MaxPool2D(kernel_size=2, stride=2, pool_algo=pool_algo)
+        output = pool.forward(x)
 
-    pool = MaxPool2D(kernel_size=2, stride=2)
-    output = pool.forward(x)
+        expected_output = np.array([
+            [
+                [[6, 8],
+                 [14, 16]],
 
-    expected_output = np.array([
-        [
-            [[6, 8],
-             [14, 16]],
+                [[16, 14],
+                 [8, 6]]
+            ],
+            [
+                [[2, 2],
+                 [4, 4]],
 
-            [[16, 14],
-             [8, 6]]
-        ],
-        [
-            [[2, 2],
-             [4, 4]],
+                [[9, 7],
+                 [1, -1]]
+            ]
+        ], dtype=np.float32)
 
-            [[9, 7],
-             [1, -1]]
-        ]
-    ], dtype=np.float32)
-
-    assert output.shape == expected_output.shape, "MaxPool2D output shape mismatch"
-    assert np.allclose(output, expected_output), "MaxPool2D forward output values mismatch"
-    print("✅ MaxPool2D forward large batch/channel test passed.")
+        assert output.shape == expected_output.shape, f"MaxPool2D output shape mismatch (algo={pool_algo})"
+        assert np.allclose(output, expected_output), f"MaxPool2D forward output values mismatch (algo={pool_algo})"
+        print(f"✅ MaxPool2D forward (algo={pool_algo}) large batch/channel test passed.")
 
 
 test_maxpool2d_forward_numerical()

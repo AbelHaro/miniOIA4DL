@@ -140,8 +140,8 @@ if __name__ == "__main__":
         "--conv_algo",
         type=int,
         default=0,
-        choices=[0, 1],
-        help="Conv2d algorithm 0-img2col, 1-direct (default: 0)",
+        choices=[0, 1, 2],
+        help="Conv2d algorithm 0-img2col_fused, 1-direct, 2-img2col (default: 0)",
     )
     parser.add_argument(
         "--dense_algo",

@@ -1,5 +1,5 @@
 from modules.layer import Layer
-from modules.utils import im2col
+from modules.utils import im2col, im2col_fused
 # from cython_modules.im2col import im2col_forward_cython
 
 import numpy as np
@@ -24,9 +24,11 @@ class Conv2D(Layer):
 
         # MODIFICAR: Añadir nuevo if-else para otros algoritmos de convolución
         if conv_algo == 0:
-            self.mode = "im2col"
+            self.mode = "im2col_fused"
         elif conv_algo == 1:
             self.mode = "direct"
+        elif conv_algo == 2:
+            self.mode = "im2col"
         else:
             print(f"Algoritmo {conv_algo} no soportado aún")
             self.mode = "direct"
@@ -85,8 +87,10 @@ class Conv2D(Layer):
             return self._forward_direct(input)
         elif self.mode == "im2col":
             return self._forward_im2col(input)
+        elif self.mode == "im2col_fused":
+            return self._forward_im2col_fused(input)
         else:
-            raise ValueError("Mode must be 'direct' or 'im2col'")
+            raise ValueError("Mode must be 'direct', 'im2col', or 'im2col_fused'")
 
     def backward(self, grad_output, learning_rate):
         # ESTO NO ES NECESARIO YA QUE NO VAIS A HACER BACKPROPAGATION
@@ -192,7 +196,7 @@ class Conv2D(Layer):
     def _forward_im2col(self, input):
         B, C, H, W = input.shape
         K = self.kernel_size
-        
+
         if self.padding > 0:
             input = np.pad(
                 input,
@@ -205,12 +209,11 @@ class Conv2D(Layer):
                 mode="constant",
             ).astype(np.float32)
 
-
         """Altura y anchura después del padding, si el la imagen de entrada es 32x32,
         el kernel es 3x3, el stride es 1 y el padding es 1, entonces H_padded y W_padded serán 34x34
         se calcula así porque el padding añade 1 píxel a cada lado de la imagen, por lo que se añaden 2 píxeles en total a cada dimensión (uno a cada lado), resultando en 32 + 2 = 34 para ambas dimensiones. Si el stride fuera 2, entonces H_out y W_out serían 17x17, se calcula así porque el stride de 2 hace que el kernel se desplace 2 píxeles a la vez, por lo que el número de posiciones donde el kernel puede colocarse es la mitad del tamaño de la imagen después del padding (34/2 = 17).
         """
-        
+
         H_padded = input.shape[2]
         W_padded = input.shape[3]
         H_out = (H_padded - K) // self.stride + 1
@@ -229,5 +232,40 @@ class Conv2D(Layer):
             out += self.biases[:, np.newaxis]
 
             output[b] = out.reshape(self.out_channels, H_out, W_out)
+
+        return output
+
+    def _forward_im2col_fused(self, input):
+        """Fused im2col + GEMM convolution using np.dot for faster computation."""
+        B, C, H, W = input.shape
+        K = self.kernel_size
+
+        if self.padding > 0:
+            input = np.pad(
+                input,
+                (
+                    (0, 0),
+                    (0, 0),
+                    (self.padding, self.padding),
+                    (self.padding, self.padding),
+                ),
+                mode="constant",
+            ).astype(np.float32)
+
+        H_padded = input.shape[2]
+        W_padded = input.shape[3]
+        H_out = (H_padded - K) // self.stride + 1
+        W_out = (W_padded - K) // self.stride + 1
+
+        output = np.zeros((B, self.out_channels, H_out, W_out), dtype=np.float32)
+
+        # Reshape kernels for fused operation
+        kernel_reshaped = self.kernels.reshape(self.out_channels, -1)
+
+        for b in range(B):
+            img = input[b]
+            output[b] = im2col_fused(
+                img, K, kernel_reshaped, self.stride, H_out, W_out, self.biases
+            )
 
         return output
