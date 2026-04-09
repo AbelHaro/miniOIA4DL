@@ -1,0 +1,50 @@
+name: CI Tests
+
+on:
+  push:
+    branches: ["*"]
+  pull_request:
+    branches: ["*"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Build Cython modules
+        run: |
+          cd cython_modules
+          python setup.py build_ext --inplace
+          cd ..
+      
+      - name: Run Conv2D tests
+        run: python -m unit_tests.test_conv2d
+      
+      - name: Run Dense tests
+        run: python -m unit_tests.test_dense
+      
+      - name: Run MaxPool tests
+        run: python -m unit_tests.test_maxpool
+      
+      - name: Run ReLU tests
+        run: python -m unit_tests.test_relu
+      
+      - name: Run Softmax tests
+        run: python -m unit_tests.test_softmax
+      
+      - name: Run BatchNorm tests
+        run: python -m unit_tests.test_batchnorm

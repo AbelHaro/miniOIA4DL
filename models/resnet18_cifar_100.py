@@ -8,7 +8,7 @@ from modules.batchnorm import BatchNorm2D
 
 import time
 class BasicBlock:
-    def __init__(self, in_channels, out_channels, stride=1, conv_algo=0):
+    def __init__(self, in_channels, out_channels, stride=1, conv_algo=0, dense_algo=0):
     
         self.use_projection = (in_channels != out_channels) or (stride != 1)
         self.stride = stride
@@ -101,7 +101,7 @@ class BasicBlock:
 
 
 class ResNet18_CIFAR100:
-    def __init__(self, conv_algo=0):
+    def __init__(self, conv_algo=0, dense_algo=0, pool_algo=0):
         print("Building ResNet18 for CIFAR-100")
         self.layers = []
 
@@ -117,11 +117,11 @@ class ResNet18_CIFAR100:
         self._make_layer(256, 512, 2, stride=2, conv_algo=conv_algo)
 
         # Global average pooling
-        self.layers.append(GlobalAvgPool2D())
+        self.layers.append(GlobalAvgPool2D(pool_algo=pool_algo))
 
         # Flatten + Dense
         self.layers.append(Flatten())
-        self.layers.append(Dense(512, 100))
+        self.layers.append(Dense(512, 100, dense_algo=dense_algo))  # 100 classes for CIFAR-100
         self.layers.append(Softmax())
 
     def _make_layer(self, in_channels, out_channels, blocks, stride, conv_algo=0):

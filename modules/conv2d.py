@@ -1,46 +1,70 @@
 from modules.layer import Layer
-from modules.utils import *
-#from cython_modules.im2col import im2col_forward_cython
+from modules.utils import im2col, im2col_fused
+# from cython_modules.im2col import im2col_forward_cython
 
 import numpy as np
 
+
 class Conv2D(Layer):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, conv_algo=0, weight_init="he"):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride=1,
+        padding=0,
+        conv_algo=0,
+        weight_init="he",
+    ):
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.kernel_size = kernel_size
         self.stride = stride
         self.padding = padding
-        
+
         # MODIFICAR: Añadir nuevo if-else para otros algoritmos de convolución
         if conv_algo == 0:
-            self.mode = 'im2col'
+            self.mode = "im2col_fused"
         elif conv_algo == 1:
-            self.mode = 'direct'
+            self.mode = "direct"
+        elif conv_algo == 2:
+            self.mode = "im2col"
         else:
             print(f"Algoritmo {conv_algo} no soportado aún")
-            self.mode = 'direct' 
+            self.mode = "direct"
 
         fan_in = in_channels * kernel_size * kernel_size
         fan_out = out_channels * kernel_size * kernel_size
 
         if weight_init == "he":
             std = np.sqrt(2.0 / fan_in)
-            self.kernels = np.random.randn(out_channels, in_channels, kernel_size, kernel_size).astype(np.float32) * std
+            self.kernels = (
+                np.random.randn(
+                    out_channels, in_channels, kernel_size, kernel_size
+                ).astype(np.float32)
+                * std
+            )
         elif weight_init == "xavier":
             std = np.sqrt(2.0 / (fan_in + fan_out))
-            self.kernels = np.random.randn(out_channels, in_channels, kernel_size, kernel_size).astype(np.float32) * std
+            self.kernels = (
+                np.random.randn(
+                    out_channels, in_channels, kernel_size, kernel_size
+                ).astype(np.float32)
+                * std
+            )
         elif weight_init == "custom":
-            self.kernels = np.zeros((out_channels, in_channels, kernel_size, kernel_size), dtype=np.float32)
+            self.kernels = np.zeros(
+                (out_channels, in_channels, kernel_size, kernel_size), dtype=np.float32
+            )
         else:
-            self.kernels = np.random.uniform(-0.1, 0.1, 
-                          (out_channels, in_channels, kernel_size, kernel_size)).astype(np.float32)
-        
+            self.kernels = np.random.uniform(
+                -0.1, 0.1, (out_channels, in_channels, kernel_size, kernel_size)
+            ).astype(np.float32)
 
         self.biases = np.zeros(out_channels, dtype=np.float32)
 
         # PISTA: Y estos valores para qué las podemos utilizar?
-        # Si los usas, no olvides utilizar el modelo explicado en teoría que maximiza la caché
+        # Si los usas, no olvides utilizar el modelo explicado en teoría que maximiza la caché
         self.mc = 256
         self.nc = 1024
         self.kc = 512
@@ -49,27 +73,28 @@ class Conv2D(Layer):
         self.Ac = np.empty((self.mc, self.kc), dtype=np.float32)
         self.Bc = np.empty((self.kc, self.nc), dtype=np.float32)
 
-
     def get_weights(self):
-        return {'kernels': self.kernels, 'biases': self.biases}
+        return {"kernels": self.kernels, "biases": self.biases}
 
     def set_weights(self, weights):
-        self.kernels = weights['kernels']
-        self.biases = weights['biases']
-    
+        self.kernels = weights["kernels"]
+        self.biases = weights["biases"]
+
     def forward(self, input, training=True):
         self.input = input
         # PISTA: Usar estos if-else si implementas más algoritmos de convolución
-        if self.mode == 'direct':
+        if self.mode == "direct":
             return self._forward_direct(input)
-        elif self.mode == 'im2col':
+        elif self.mode == "im2col":
             return self._forward_im2col(input)
+        elif self.mode == "im2col_fused":
+            return self._forward_im2col_fused(input)
         else:
-            raise ValueError("Mode must be 'direct' or 'im2col'")
+            raise ValueError("Mode must be 'direct', 'im2col', or 'im2col_fused'")
 
     def backward(self, grad_output, learning_rate):
         # ESTO NO ES NECESARIO YA QUE NO VAIS A HACER BACKPROPAGATION
-        if self.mode == 'direct':
+        if self.mode == "direct":
             return self._backward_direct(grad_output, learning_rate)
         else:
             raise ValueError("Mode must be 'direct' or 'im2col'")
@@ -81,23 +106,37 @@ class Conv2D(Layer):
         k_h, k_w = self.kernel_size, self.kernel_size
 
         if self.padding > 0:
-            input = np.pad(input,
-                           ((0, 0), (0, 0), (self.padding, self.padding), (self.padding, self.padding)),
-                           mode='constant').astype(np.float32)
+            input = np.pad(
+                input,
+                (
+                    (0, 0),
+                    (0, 0),
+                    (self.padding, self.padding),
+                    (self.padding, self.padding),
+                ),
+                mode="constant",
+            ).astype(np.float32)
 
         out_h = (input.shape[2] - k_h) // self.stride + 1
         out_w = (input.shape[3] - k_w) // self.stride + 1
-        output = np.zeros((batch_size, self.out_channels, out_h, out_w), dtype=np.float32)
+        output = np.zeros(
+            (batch_size, self.out_channels, out_h, out_w), dtype=np.float32
+        )
 
         for b in range(batch_size):
             for out_c in range(self.out_channels):
                 for in_c in range(self.in_channels):
                     for i in range(out_h):
                         for j in range(out_w):
-                            region = input[b, in_c,
-                                           i * self.stride:i * self.stride + k_h,
-                                           j * self.stride:j * self.stride + k_w]
-                            output[b, out_c, i, j] += np.sum(region * self.kernels[out_c, in_c])
+                            region = input[
+                                b,
+                                in_c,
+                                i * self.stride : i * self.stride + k_h,
+                                j * self.stride : j * self.stride + k_w,
+                            ]
+                            output[b, out_c, i, j] += np.sum(
+                                region * self.kernels[out_c, in_c]
+                            )
                 output[b, out_c] += self.biases[out_c]
 
         return output
@@ -108,9 +147,16 @@ class Conv2D(Layer):
         k_h, k_w = self.kernel_size, self.kernel_size
 
         if self.padding > 0:
-            input_padded = np.pad(self.input,
-                                  ((0, 0), (0, 0), (self.padding, self.padding), (self.padding, self.padding)),
-                                  mode='constant').astype(np.float32)
+            input_padded = np.pad(
+                self.input,
+                (
+                    (0, 0),
+                    (0, 0),
+                    (self.padding, self.padding),
+                    (self.padding, self.padding),
+                ),
+                mode="constant",
+            ).astype(np.float32)
         else:
             input_padded = self.input
 
@@ -125,13 +171,19 @@ class Conv2D(Layer):
                         for j in range(out_w):
                             r = i * self.stride
                             c = j * self.stride
-                            region = input_padded[b, in_c, r:r + k_h, c:c + k_w]
-                            grad_kernels[out_c, in_c] += grad_output[b, out_c, i, j] * region
-                            grad_input_padded[b, in_c, r:r + k_h, c:c + k_w] += self.kernels[out_c, in_c] * grad_output[b, out_c, i, j]
+                            region = input_padded[b, in_c, r : r + k_h, c : c + k_w]
+                            grad_kernels[out_c, in_c] += (
+                                grad_output[b, out_c, i, j] * region
+                            )
+                            grad_input_padded[b, in_c, r : r + k_h, c : c + k_w] += (
+                                self.kernels[out_c, in_c] * grad_output[b, out_c, i, j]
+                            )
                 grad_biases[out_c] += np.sum(grad_output[b, out_c])
 
         if self.padding > 0:
-            grad_input = grad_input_padded[:, :, self.padding:-self.padding, self.padding:-self.padding]
+            grad_input = grad_input_padded[
+                :, :, self.padding : -self.padding, self.padding : -self.padding
+            ]
         else:
             grad_input = grad_input_padded
 
@@ -142,57 +194,78 @@ class Conv2D(Layer):
 
     # PISTA: Se te ocurren otros algoritmos de convolución?
     def _forward_im2col(self, input):
-        
         B, C, H, W = input.shape
         K = self.kernel_size
-        H_out = H - K + 1
-        W_out = W - K + 1
-        
-        # Procesar cada imagen del batch
+
+        if self.padding > 0:
+            input = np.pad(
+                input,
+                (
+                    (0, 0),
+                    (0, 0),
+                    (self.padding, self.padding),
+                    (self.padding, self.padding),
+                ),
+                mode="constant",
+            ).astype(np.float32)
+
+        """Altura y anchura después del padding, si el la imagen de entrada es 32x32,
+        el kernel es 3x3, el stride es 1 y el padding es 1, entonces H_padded y W_padded serán 34x34
+        se calcula así porque el padding añade 1 píxel a cada lado de la imagen, por lo que se añaden 2 píxeles en total a cada dimensión (uno a cada lado), resultando en 32 + 2 = 34 para ambas dimensiones. Si el stride fuera 2, entonces H_out y W_out serían 17x17, se calcula así porque el stride de 2 hace que el kernel se desplace 2 píxeles a la vez, por lo que el número de posiciones donde el kernel puede colocarse es la mitad del tamaño de la imagen después del padding (34/2 = 17).
+        """
+
+        H_padded = input.shape[2]
+        W_padded = input.shape[3]
+        H_out = (H_padded - K) // self.stride + 1
+        W_out = (W_padded - K) // self.stride + 1
+
         output = np.zeros((B, self.out_channels, H_out, W_out), dtype=np.float32)
-        
+
         for b in range(B):
-            # Extraer la imagen actual del batch (shape: C, H, W)
             img = input[b]
-            
-            # Convertir a im2col (shape: C*K*K, H_out*W_out)
-            cols = self._im2col(img, K)
-            
-            # Aplanar los kernels para multiplicación matricial (shape: out_channels, C*K*K)
+            cols = im2col(img, K, self.stride, H_out, W_out)
+
             kernel = self.kernels.reshape(self.out_channels, -1)
-            
-            # Multiplicación matricial (shape: out_channels, H_out*W_out)
+
             out = kernel @ cols
-            
-            # Añadir bias (shape: out_channels, H_out*W_out)
+
             out += self.biases[:, np.newaxis]
-            
-            # Reshape y almacenar (shape: out_channels, H_out, W_out)
+
             output[b] = out.reshape(self.out_channels, H_out, W_out)
-        
+
         return output
-        
-        
-    def _im2col(self, x, K):
-        # Extraer el tamaño de la imagen (x es 3D: C, H, W)
-        C, H, W = x.shape
-        
-        """ Calcular el tamaño de la salida después el proceso de im2col
-            H_out y W_out representan el número de posiciones donde se puede aplicar el kernel de tamaño KxK sobre la imagen de tamaño HxW
-            Si la imagen es de tamaño 32x32 y el kernel es de tamaño 3x3, entonces H_out y W_out serán ambos iguales a 30, porque el kernel puede colocarse en 30 posiciones a lo largo de cada dimensión sin salirse de la imagen."""
-            
-        H_out = H - K + 1
-        W_out = W - K + 1
-        
-        """ Crear una matriz de ceros para almacenar los parches extraídos de la imagen. 
-            La matriz 'cols' tendrá un tamaño de (C*K*K, H_out*W_out) porque cada columna representará un parche aplanado de tamaño C*KxK (todos los canales), y habrá H_out*W_out columnas en total, una para cada posición del kernel sobre la imagen."""
-        cols = np.zeros((C * K * K, H_out * W_out), dtype=np.float32)
-        
-        for i in range(H_out):
-            for j in range(W_out):
-                # Extraer el parche para todos los canales (shape: C, K, K)
-                patch = x[:, i:i+K, j:j+K].reshape(-1)
-                # Almacenar el parche aplanado en la matriz 'cols' en la columna correspondiente a la posición actual del kernel.
-                cols[:, i * W_out + j] = patch
-                
-        return cols
+
+    def _forward_im2col_fused(self, input):
+        """Fused im2col + GEMM convolution using np.dot for faster computation."""
+        B, C, H, W = input.shape
+        K = self.kernel_size
+
+        if self.padding > 0:
+            input = np.pad(
+                input,
+                (
+                    (0, 0),
+                    (0, 0),
+                    (self.padding, self.padding),
+                    (self.padding, self.padding),
+                ),
+                mode="constant",
+            ).astype(np.float32)
+
+        H_padded = input.shape[2]
+        W_padded = input.shape[3]
+        H_out = (H_padded - K) // self.stride + 1
+        W_out = (W_padded - K) // self.stride + 1
+
+        output = np.zeros((B, self.out_channels, H_out, W_out), dtype=np.float32)
+
+        # Reshape kernels for fused operation
+        kernel_reshaped = self.kernels.reshape(self.out_channels, -1)
+
+        for b in range(B):
+            img = input[b]
+            output[b] = im2col_fused(
+                img, K, kernel_reshaped, self.stride, H_out, W_out, self.biases
+            )
+
+        return output
