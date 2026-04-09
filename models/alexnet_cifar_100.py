@@ -9,7 +9,7 @@ from modules.dropout import Dropout
 from models.basemodel import BaseModel
 
 class AlexNet_CIFAR100(BaseModel): 
-     def __init__(self, conv_algo=0):
+     def __init__(self, conv_algo=0, dense_algo=0):
          print("Building AlexNet for CIFAR-100")
          layers = [] 
          layers.append(Conv2D(in_channels=3, out_channels=64, kernel_size=3, stride=1, padding=1, conv_algo=conv_algo))
@@ -36,14 +36,14 @@ class AlexNet_CIFAR100(BaseModel):
          layers.append(MaxPool2D(kernel_size=2, stride=2))  # 8x8 → 4x4
 
          layers.append(Flatten())
-         layers.append(Dense(256 * 4 * 4, 1024))
+         layers.append(Dense(256 * 4 * 4, 1024, dense_algo=dense_algo))
          layers.append(ReLU())
          layers.append(Dropout(0.5))  # Dropout layer with 50% probability
          
-         layers.append(Dense(1024, 512))
+         layers.append(Dense(1024, 512, dense_algo=dense_algo))
          layers.append(ReLU())
          layers.append(Dropout(0.5))  # Dropout layer with 50% probability
-         layers.append(Dense(512, 100))  # 100 classes for CIFAR-100
+         layers.append(Dense(512, 100, dense_algo=dense_algo))  # 100 classes for CIFAR-100
          layers.append(Softmax())
 
          super().__init__(layers)

@@ -12,7 +12,7 @@ def test_dense_forward_large():
     input_data = np.random.randn(batch_size, input_dim).astype(np.float32)
 
     # Initialize Dense layer
-    dense = Dense(in_features=input_dim, out_features=output_dim)
+    dense = Dense(in_features=input_dim, out_features=output_dim, dense_algo=0)
 
     # Set known weights and bias
     weight = np.random.randn(input_dim, output_dim).astype(np.float32)
