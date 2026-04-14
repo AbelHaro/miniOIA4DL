@@ -12,6 +12,7 @@ def matmul_biasses(A, B, C, bias):
             C[i][j] += bias[j]
     return C
 
+# INICIO DE BLOQUE GENERADO CON IA
 
 def im2col(x, K, stride=1, H_out=None, W_out=None):
     # Numero de canales, altura y ancho de la imagen
@@ -115,3 +116,6 @@ def im2col_fused(x, K, kernel, stride=1, H_out=None, W_out=None, biases=None):
         output += biases[:, np.newaxis, np.newaxis]
 
     return output
+
+# FIN DE BLOQUE GENERADO CON IA
+

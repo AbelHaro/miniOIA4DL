@@ -155,7 +155,7 @@ if __name__ == "__main__":
         type=int,
         default=0,
         choices=[0, 1],
-        help="Pool algorithm 0-python, 1-cython (default: 0)",
+        help="Pool algorithm 0-cython, 1-python (default: 0)",
     )
 
     args = parser.parse_args()
