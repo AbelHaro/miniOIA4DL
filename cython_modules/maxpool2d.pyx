@@ -1,9 +1,9 @@
 """
 Cython-optimized MaxPool2D implementation.
 Provides significant performance improvements over pure Python loops.
+INICIO DE BLOQUE GENERADO CON IA
 """
 
-// INICIO DE BLOQUE GENERADO CON IA
 import numpy as np
 cimport numpy as np
 cimport cython
@@ -70,4 +70,6 @@ def maxpool_forward_cython(
     
     return output
 
-// FIN DE BLOQUE GENERADO CON IA
+"""
+    FIN DE BLOQUE GENERADO CON IA
+"""
